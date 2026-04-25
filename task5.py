@@ -10,125 +10,90 @@ def solve():
         row = sys.stdin.readline().strip()
         grid.append([int(c) for c in row])
     
-    # 8 направлений спирали (по часовой и против часовой стрелки)
-    # Для змейки размера m, мы начинаем с центра и идём по спирали
-    
-    # Направления для спирали по часовой стрелке: право, низ, лево, верх
-    # Направления для спирали против часовой стрелки: право, верх, лево, низ
-    # Но на самом деле есть 8 возможных начальных направлений и 2 направления вращения
-    
-    # Упрощение: для каждой клетки как потенциального центра, проверяем все 8 возможных змеек
-    
-    # 8 паттернов змеек размера 3 (направления первого шага и вращения):
-    # Первый шаг может быть в любом из 4 направлений, и есть 2 направления вращения
-    
-    # Directions: right, down, left, up
-    dx = [0, 1, 0, -1]  # right, down, left, up
+    # 8 направлений для первого шага из центра
+    # dx, dy: right, down, left, up
+    dx = [0, 1, 0, -1]
     dy = [1, 0, -1, 0]
     
-    def check_snake(cx, cy, size):
-        """Проверяет, является ли квадрат размера size с центром (cx, cy) змейкой"""
-        if size == 1:
-            return grid[cx][cy] == 0
-        
-        # Радиус от центра до края
-        radius = size // 2
+    def check_snake(cx, cy, max_radius):
+        """Проверяет максимальный радиус змейки с центром (cx, cy)"""
+        if grid[cx][cy] != 0:
+            return 0
         
         # Проверяем все 8 комбинаций (4 начальных направления * 2 направления вращения)
+        best_radius = 0
+        
         for start_dir in range(4):
             for clockwise in [True, False]:
-                if check_snake_pattern(cx, cy, size, start_dir, clockwise):
-                    return True
+                radius = check_pattern(cx, cy, start_dir, clockwise, max_radius)
+                if radius > best_radius:
+                    best_radius = radius
         
-        return False
+        return best_radius
     
-    def check_snake_pattern(cx, cy, size, start_dir, clockwise):
-        """Проверяет конкретный паттерн змейки"""
-        radius = size // 2
-        
-        # Генерируем координаты спирали
-        x, y = cx, cy
-        
-        # Проверяем центр
-        if grid[x][y] != 0:
-            return False
-        
-        # Направления движения по спирали
-        # Спираль: право, вниз, влево, вверх, право, ... (по часовой)
-        # или право, вверх, влево, вниз, право, ... (против часовой)
-        
-        dirs = list(range(4))
-        if not clockwise:
-            dirs = [0, 3, 2, 1]  # right, up, left, down
-        
-        # Смещаем начала направлений
-        dirs = [(start_dir + i) % 4 for i in range(4)]
-        if not clockwise:
-            dirs = [(start_dir - i) % 4 for i in range(4)]
-        
-        expected = 0
-        x, y = cx, cy
-        
-        # Длина каждого сегмента спирали: 1, 1, 2, 2, 3, 3, ...
-        # Но для змейки размера m, мы идём radius раз в каждом направлении
-        
-        # Более простой подход: генерируем координаты по спирали
-        spiral_coords = generate_spiral_coords(cx, cy, radius, start_dir, clockwise)
-        
-        for idx, (nx, ny) in enumerate(spiral_coords):
-            expected = (idx + 1) % k
-            if grid[nx][ny] != expected:
-                return False
-        
-        return True
-    
-    def generate_spiral_coords(cx, cy, radius, start_dir, clockwise):
-        """Генерирует координаты спирали от центра до радиуса radius"""
-        coords = []
-        
-        x, y = cx, cy
-        
-        # Длины сегментов: 1, 1, 2, 2, 3, 3, ..., radius, radius
-        # Но нам нужно покрыть квадрат размера 2*radius+1
-        
+    def check_pattern(cx, cy, start_dir, clockwise, max_possible):
+        """Проверяет паттерн змейки и возвращает максимальный радиус"""
         # Порядок направлений
         if clockwise:
             dir_order = [(start_dir + i) % 4 for i in range(4)]
         else:
             dir_order = [(start_dir - i) % 4 for i in range(4)]
         
+        x, y = cx, cy
         seg_len = 1
         seg_idx = 0
+        step = 0  # Номер шага (не включая центр)
         
-        while len(coords) < (2 * radius + 1) ** 2 - 1:
+        max_steps = (2 * max_possible + 1) ** 2 - 1
+        
+        while step < max_steps:
             d = dir_order[seg_idx % 4]
             
-            # Длина текущего сегмента
-            current_len = seg_len
-            
-            for _ in range(current_len):
+            # Проходим сегмент длины seg_len
+            for _ in range(seg_len):
+                if step >= max_steps:
+                    break
+                    
                 x += dx[d]
                 y += dy[d]
                 
                 # Проверка границ
                 if x < 0 or x >= n or y < 0 or y >= n:
-                    return coords
+                    # Возвращаем текущий достигнутый радиус
+                    current_radius = int((step ** 0.5) / 2) + 1
+                    return min(current_radius, max_possible)
                 
-                coords.append((x, y))
+                expected = (step + 1) % k
+                if grid[x][y] != expected:
+                    # Возвращаем максимальный радиус, который удалось достичь
+                    # Размер квадрата = 2*radius + 1, где radius - это расстояние от центра до края
+                    # step - это количество пройденных клеток после центра
+                    # Для радиуса r, нужно пройти (2r+1)^2 - 1 шагов
+                    # Ищем максимальное r такое, что (2r+1)^2 - 1 <= step
+                    if step == 0:
+                        return 0
+                    # Приближённо: radius ≈ sqrt(step) / 2
+                    # Но точнее: для полного квадрата размера 2r+1 нужно (2r+1)^2 - 1 шагов
+                    # Если мы прошли step шагов, то максимальный полный квадрат имеет размер
+                    # такой, что (2r+1)^2 - 1 <= step
+                    r = 0
+                    for test_r in range(1, max_possible + 1):
+                        needed = (2 * test_r + 1) ** 2 - 1
+                        if needed <= step:
+                            r = test_r
+                        else:
+                            break
+                    return r
                 
-                if len(coords) >= (2 * radius + 1) ** 2 - 1:
-                    break
-            
-            if len(coords) >= (2 * radius + 1) ** 2 - 1:
-                break
+                step += 1
             
             seg_idx += 1
             if seg_idx % 2 == 0:
                 seg_len += 1
         
-        return coords[:radius * (radius + 1) * 2]  # Приблизительно
+        return max_possible
     
-    # Перебираем все возможные центры и размеры
+    # Перебираем все возможные центры
     best_size = 1
     best_center = None
     
@@ -138,20 +103,25 @@ def solve():
             if grid[i][j] == 0:
                 best_size = 1
                 best_center = (i + 1, j + 1)
-                break
-        if best_center:
-            break
     
-    # Перебираем нечётные размеры от 3 до n
-    for size in range(3, n + 1, 2):
-        radius = size // 2
-        
-        for cx in range(radius, n - radius):
-            for cy in range(radius, n - radius):
-                if check_snake(cx, cy, size):
-                    if size > best_size:
-                        best_size = size
-                        best_center = (cx + 1, cy + 1)
+    # Перебираем все центры и проверяем максимальный размер змейки
+    for cx in range(n):
+        for cy in range(n):
+            if grid[cx][cy] != 0:
+                continue
+            
+            # Максимально возможный радиус для этого центра
+            max_radius = min(cx, cy, n - 1 - cx, n - 1 - cy)
+            
+            if max_radius == 0:
+                continue
+            
+            radius = check_snake(cx, cy, max_radius)
+            size = 2 * radius + 1
+            
+            if size > best_size:
+                best_size = size
+                best_center = (cx + 1, cy + 1)
     
     print(best_size * best_size)
     print(best_center[0], best_center[1])
